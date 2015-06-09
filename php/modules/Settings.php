@@ -2,7 +2,7 @@
 
 ###
 # @name			Settings Module
-# @copyright	2014 by Tobias Reich
+# @copyright	2015 by Tobias Reich
 ###
 
 if (!defined('LYCHEE')) exit('Error: Direct access is not allowed!');
@@ -50,10 +50,10 @@ class Settings extends Module {
 		if ($oldPassword===$settings['password']||$settings['password']===crypt($oldPassword, $settings['password'])) {
 
 			# Save username
-			if (!$this->setUsername($username)) exit('Error: Updating username failed!');
+			if ($this->setUsername($username)!==true) exit('Error: Updating username failed!');
 
 			# Save password
-			if (!$this->setPassword($password)) exit('Error: Updating password failed!');
+			if ($this->setPassword($password)!==true) exit('Error: Updating password failed!');
 
 			return true;
 
@@ -68,15 +68,13 @@ class Settings extends Module {
 		# Check dependencies
 		self::dependencies(isset($this->database));
 
-		# Parse
-		$username = htmlentities($username);
-		if (strlen($username)>50) {
-			Log::notice($this->database, __METHOD__, __LINE__, 'Username is longer than 50 chars');
-			return false;
-		}
+		# Hash username
+		$username = getHashedString($username);
 
 		# Execute query
-		$query	= Database::prepare($this->database, "UPDATE ? SET value = '?' WHERE `key` = 'username'", array(LYCHEE_TABLE_SETTINGS, $username));
+		# Do not prepare $username because it is hashed and save
+		# Preparing (escaping) the username would destroy the hash
+		$query	= Database::prepare($this->database, "UPDATE ? SET value = '$username' WHERE `key` = 'username'", array(LYCHEE_TABLE_SETTINGS));
 		$result	= $this->database->query($query);
 
 		if (!$result) {
@@ -92,7 +90,8 @@ class Settings extends Module {
 		# Check dependencies
 		self::dependencies(isset($this->database));
 
-		$password = get_hashed_password($password);
+		# Hash password
+		$password = getHashedString($password);
 
 		# Execute query
 		# Do not prepare $password because it is hashed and save
@@ -130,7 +129,7 @@ class Settings extends Module {
 
 	}
 
-	public function setSorting($type, $order) {
+	public function setSortingPhotos($type, $order) {
 
 		# Check dependencies
 		self::dependencies(isset($this->database, $type, $order));
@@ -183,7 +182,64 @@ class Settings extends Module {
 		# Execute query
 		# Do not prepare $sorting because it is a true statement
 		# Preparing (escaping) the sorting would destroy it
-		$query	= Database::prepare($this->database, "UPDATE ? SET value = '$sorting' WHERE `key` = 'sorting'", array(LYCHEE_TABLE_SETTINGS));
+		# $sorting is save and can't contain user-input
+		$query	= Database::prepare($this->database, "UPDATE ? SET value = '$sorting' WHERE `key` = 'sortingPhotos'", array(LYCHEE_TABLE_SETTINGS));
+		$result	= $this->database->query($query);
+
+		if (!$result) {
+			Log::error($this->database, __METHOD__, __LINE__, $this->database->error);
+			return false;
+		}
+		return true;
+
+	}
+
+	public function setSortingAlbums($type, $order) {
+
+		# Check dependencies
+		self::dependencies(isset($this->database, $type, $order));
+
+		$sorting = 'ORDER BY ';
+
+		# Set row
+		switch ($type) {
+
+			case 'id':			$sorting .= 'id';
+								break;
+
+			case 'title':		$sorting .= 'title';
+								break;
+
+			case 'description':	$sorting .= 'description';
+								break;
+
+			case 'public':		$sorting .= 'public';
+								break;
+
+			default:			exit('Error: Unknown type for sorting!');
+
+		}
+
+		$sorting .= ' ';
+
+		# Set order
+		switch ($order) {
+
+			case 'ASC':		$sorting .= 'ASC';
+							break;
+
+			case 'DESC':	$sorting .= 'DESC';
+							break;
+
+			default:		exit('Error: Unknown order for sorting!');
+
+		}
+
+		# Execute query
+		# Do not prepare $sorting because it is a true statement
+		# Preparing (escaping) the sorting would destroy it
+		# $sorting is save and can't contain user-input
+		$query	= Database::prepare($this->database, "UPDATE ? SET value = '$sorting' WHERE `key` = 'sortingAlbums'", array(LYCHEE_TABLE_SETTINGS));
 		$result	= $this->database->query($query);
 
 		if (!$result) {
